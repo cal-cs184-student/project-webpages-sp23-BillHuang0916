@@ -1,7 +1,280 @@
-<html>
-	<head>
-	</head>
-	<body>
-		Project 1 here
-	</body>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+<head>
+  <style>
+    body {
+      padding: 100px;
+      width: 1000px;
+      margin: auto;
+      text-align: left;
+      font-weight: 300;
+      font-family: 'Open Sans', sans-serif;
+      color: #121212;
+    }
+
+    .fit_image {
+      width: 100%;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4 {
+      font-family: 'Source Sans Pro', sans-serif;
+    }
+  </style>
+  <title>CS 184 Rasterizer</title>
+  <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+  <link href="https://fonts.googleapis.com/css?family=Open+Sans|Source+Sans+Pro" rel="stylesheet">
+</head>
+
+
+<body>
+
+  <h1 align="middle">CS 184: Computer Graphics and Imaging, Spring 2023</h1>
+  <h1 align="middle">Project 1: Rasterizer</h1>
+  <h2 align="middle">Billy Huang, CS184</h2>
+
+  <br><br>
+
+  <div>
+
+    <h2 align="middle">Overview</h2>
+    <p>In this project, I explored implementing a basic rasterizer with features such as drawing triangles,
+      supersampling, transforms, and texture mapping with antialiasing. The rasterizer is able to take SVG files and
+      display them.</p>
+
+    <h2 align="middle">Section I: Rasterization</h2>
+
+    <h3 align="middle">Part 1: Rasterizing single-color triangles</h3>
+    <p>To rasterize triangles, I use the three line test to check whether every point in the bounding box is in the
+      triangle. For every pair of vertices, I define the normal line between them and a function that determines whether
+      the dot product between the normal line and the vector from the first vertex to the point is negative.
+      If said dot product is negative or 0 (to handle edge cases), then the point is inside the triangle edge.
+      If all three functions for each edge of triangle say that the point is inside the triangle, then I render that
+      point as part of the triangle. However, my three line test only works on a counterclockwise winding of the
+      vertices of the triangle because of the way I build the lines tests, so I first ensure that the vertices are
+      specified in counter-clockwise winding by ensuring that the cross product between to edges of the triangle that
+      share a vertex is positive. If the cross product is negative, then I call the function again but with the vertices
+      specified in reverse order.
+    </p>
+    <p>
+      I do this test for all points in the bounding box of the triangle, which I find by finding the min x and y and the
+      max x and y, and render all points that pass the three point test. Since I only iterate through each pixel in the
+      bounding box once, my algorithm is no worse than one that checks each sample within the bounding box of the
+      triangle.
+    </p>
+    <div align="middle">
+      <img class="fit_image" src="images/basic_test4.png" align="middle" />
+      <figcaption align="middle">PNG of basic/test4.svg showcasing triangle rasterization</figcaption>
+    </div>
+
+    <h3 align="middle">Part 2: Antialiasing triangles</h3>
+    <p>Supersampling was implemented by scaling the internal sample buffer by the square root of the supersampling
+      factor, k, and adjusting all functions accordingly. `fill_pixel` was modified to fill all k*k pixels in the scaled
+      sample buffer that represent the individual frame buffer pixel with the same `Color`. Similarly,
+      `rasterize_triangle` scaled its internal coordinate system by k and did the same three point test on all pixels of
+      the scaled bounding box. However, `rasterize_triangle` now directly fills the sample buffer instead of using
+      `fill_pixel` as an intermediary. Finally, when resolving the sample buffer to the frame buffer, the frame buffer
+      renders the average color between all k*k Color objects in the sample buffer that represent the frame buffer
+      pixel.
+    </p>
+
+    <p>
+      With supersampling implemented, I could now antialias my rasterized triangles. Instead of sampling once for each
+      frame buffer pixel, I could now sample k squared times per pixel and average the color, smoothing the color
+      transition between pixels and reducing jaggies in the rasterized triangle. Furthermore, by increasing the sampling
+      rate of the image, we can approach and bypass the Nyquist frequency and ensure that there is no aliasing effects
+      in the final image. We can see the antialiasing effect below.
+    </p>
+    <div align="middle">
+      <table style="width:100%">
+        <tr>
+          <td>
+            <img src="images/basic_test4_1.png" align="middle" width="100%" />
+            <figcaption align="middle">PNG of basic/test4.svg with supersampling rate 1</figcaption>
+          </td>
+          <td>
+            <img src="images/basic_test4_4.png" align="middle" width="100%" />
+            <figcaption align="middle">PNG of basic/test4.svg with supersampling rate 4</figcaption>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <img src="images/basic_test4_9.png" align="middle" width="100%" />
+            <figcaption align="middle">PNG of basic/test4.svg with supersampling rate 9</figcaption>
+          </td>
+          <td>
+            <img src="images/basic_test4_16.png" align="middle" width="100%" />
+            <figcaption align="middle">PNG of basic/test4.svg with supersampling rate 16</figcaption>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <h3 align="middle">Part 3: Transforms</h3>
+    <p>I implemented transforms using transforms matrices in homogeneous coordinates. Below is the running robot I made
+      by first rotating its entire body slightly and then by rotating and translating each individual arm and leg to
+      match running posture.</p>
+    <div align="middle">
+      <img class="fit_image" src="images/myrobot.png" align="middle" />
+      <figcaption align="middle">My running robot showcasing transforms</figcaption>
+    </div>
+
+    <h2 align="middle">Section II: Sampling</h2>
+
+    <h3 align="middle">Part 4: Barycentric coordinates</h3>
+    <p>Barycentric coordinates allows one to specify a 2D point as a weighted average of the three vertices of a
+      triangle and generalizes to higher dimensions. There are many different interpretations of barycentric coordinates
+      in 2 dimensions. The one I used was the notion that the barycentric coordinates represent the proportional
+      distance the point is from each vertex when comparing altitudes. However, they can also be viewed as the
+      proportional areas of the triangles formed from the point and the two opposing vertices or as a 3D basis transform
+      in linear algebra.
+    </p>
+
+    <p>
+      What makes barycentric coordinates useful are the proportional distance and area interpretations, as they allow
+      easy interpolation within triangles. For example, below is a triangle where the color of the three vertices are
+      red, green, and blue and all other colors are interpolated. Every color for every point in the triangle is based
+      on the proportional distance to each of the three vertices and is calculated by converting the point into its
+      barycentric coordinates and computing a weighted average of the colors using the barycentric coordinates as
+      weights.
+    </p>
+
+    <div align="middle">
+      <img class="fit_image" src="images/barycentric_triangle.png" align="middle" />
+      <figcaption align="middle">Color interpolation using barycentric coordinates</figcaption>
+    </div>
+    <div align="middle">
+      <img class="fit_image" src="images/basic_test7.png" align="middle" />
+      <figcaption align="middle">PNG of basic/test7.svg showcasing interpolated color triangles</figcaption>
+    </div>
+    <h3 align="middle">Part 5: "Pixel sampling" for texture mapping</h3>
+    <p>Pixel sampling is the process of determining the value of a pixel through measurements. In the case of texture
+      mapping, pixel sampling is achieved by transforming the screen coordinates into the coordinate system of the
+      texture map and then sampling the color from the texture map.
+    </p>
+    <p>I achieved this for texture mapped triangles, when given the texture map coordinates for vertex of the triangle,
+      by using barycentric coordinates to transform the screen coordinates for any point within the triangle to the
+      texture map coordinates with interpolation. Once I had the texture map coordinates, I would then sample the
+      correct color with either nearest sampling or bilinear sampling. Nearest sampling simply takes the color of the
+      nearest texture map pixel as the color while bilinear sampling takes the weighted average of the colors of the the
+      four nearest pixels based on the proximity to the specified texture map coordinates. Below showcases the
+      differences between nearest and bilinear sampling.</p>
+
+    <div align="middle">
+      <table style="width:100%">
+        <tr>
+          <td>
+            <img src="images/textmap4_n1.png" align="middle" width="100%" />
+            <figcaption align="middle">Distorted Cal logo with with nearest sampling and supersampling rate 1
+            </figcaption>
+          </td>
+          <td>
+            <img src="images/textmap4_b1.png" align="middle" width="100%" />
+            <figcaption align="middle">Distorted Cal logo with with bilinear sampling and supersampling rate 1
+            </figcaption>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <img src="images/textmap4_n16.png" align="middle" width="100%" />
+            <figcaption align="middle">Distorted Cal logo with with nearest sampling and supersampling rate 16
+            </figcaption>
+          </td>
+          <td>
+            <img src="images/textmap4_b16.png" align="middle" width="100%" />
+            <figcaption align="middle">Distorted Cal logo with with bilinear sampling and supersampling rate 16
+            </figcaption>
+          </td>
+        </tr>
+      </table>
+    </div>
+    <p>
+      We can see a relatively large difference between nearest and bilinear sampling when supersampling at rate 1:
+      nearest sampling has significant aliasing at supersampling rate 1 (jaggies on the word Berkeley) while bilinear
+      sampling does not. However, this difference is not as significant when supersampling at rate 16 because a high
+      supersampling rate already antialiases, reducing any extra antialiasing effect bilinear sampling has on the
+      texture map.
+    </p>
+    <h3 align="middle">Part 6: "Level sampling" with mipmaps for texture mapping</h3>
+    <p>
+      Level sampling is sampling textures at different texture map resolutions that helps prevent aliasing at both high
+      and low frequencies depending on the footprint each screen pixel has on the texture map. I implemented this by
+      using mipmaps that store the texture map at different resolutions after low-pass filtering and downsampling. When
+      sampling from the texture maps, I would first use barycentric coordinates as above to calculate the texture map
+      coordinates of nearby screen pixels (plus or minus one pixel in the x or y coordinate) and find the longest length
+      between the original texture map coordinates and the nearby texture map coordinates, L, after scaling by the
+      length and width of the full resolution texture map. L is an estimate of the footprint the screen pixel has and I
+      would use log2(L) as the mipmap level to sample from. When the level sampling is L_NEAREST, I used the nearest
+      level to log2(L), when the level sampling is L_LINEAR, I would proportionally weight the adjacent levels by how
+      close they were to log2(L), and when the level sampling is L_ZERO, I would use the full resolution texture map.
+    </p>
+
+    <p>Pixel sampling, level sampling, and supersampling are all methods of sampling that I implemented in this
+      project and have their own tradeoffs.
+    </p>
+    <ul>
+      <li>Pixel sampling the simplest form of sampling that requires the least memory and computation. One either
+        samples the nearest pixel (P_NEAREST) or the four nearest pixels (P_BILINEAR) and averages them. While this
+        makes pixel sampling fast, it also makes pixel sampling have low antialiasing power and, especially nearest
+        pixel sampling, susceptible to aliasing and jaggies.</li>
+      <li>The simplest solution to the aliasing is to increase the sampling rate through supersampling, but
+        supersampling is very computationally and memory intensive. If the sampling rate is k, then supersampling uses k
+        times more operations and memory. As a result, supersampling trades speed for extremely powerful antialising
+        power. </li>
+      <li>Finally, level sampling provides a good tradeoff between pixel sampling and supersampling. I compute mipmap
+        levels at exponentially decreasing resolutions, so I only use 1/3 more memory than pixel sampling and still
+        get good antialiasing power through the precomputed, downsampled and antialiased mipmaps. Furthermore, the
+        additional computation reasonable as I only need to sample two nearby pixels to determine the mipmap level to
+        use, making level sampling fast. However, the antialiasing effect of mipmaps cause overblur at long distances.
+      </li>
+    </ul>
+
+    <p>
+      As an example, below are images of Starry Night distorted to showcase the effects of level and pixel sampling. All
+      images use sample rate 1.
+    </p>
+    <div align="middle">
+      <table style="width:100%">
+        <tr>
+          <td>
+            <img src="images/starry_night_0n.png" align="middle" width="100%" />
+            <figcaption align="middle">Distorted Starry Night using the full resolution texture map and nearest pixel
+              sampling
+            </figcaption>
+          </td>
+          <td>
+            <img src="images/starry_night_0l.png" align="middle" width="100%" />
+            <figcaption align="middle">Distorted Starry Night using the full resolution texture map and bilinear pixel
+              sampling
+            </figcaption>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <img src="images/starry_night_nn.png" align="middle" width="100%" />
+            <figcaption align="middle">Distorted Starry Night using the nearest texture map level and nearest pixel
+              sampling
+            </figcaption>
+          </td>
+          <td>
+            <img src="images/starry_night_nl.png" align="middle" width="100%" />
+            <figcaption align="middle">Distorted Starry Night using the nearest texture map level and bilinear pixel
+              sampling
+            </figcaption>
+          </td>
+        </tr>
+      </table>
+    </div>
+    </p>
+
+    <!-- <h2 align="middle">Section III: Art Competition</h2>
+    <p>If you are not participating in the optional art competition, don't worry about this section!</p>
+
+    <h3 align="middle">Part 7: Draw something interesting!</h3> -->
+
+</body>
+
 </html>
