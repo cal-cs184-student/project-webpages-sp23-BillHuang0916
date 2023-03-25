@@ -1,7 +1,281 @@
-<html>
-	<head>
-	</head>
-	<body>
-		Project 3-2 here
-	</body>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+<head>
+    <style>
+        body {
+            background-color: white;
+            padding: 100px;
+            width: 1000px;
+            margin: auto;
+            text-align: left;
+            font-weight: 300;
+            font-family: 'Open Sans', sans-serif;
+            color: #121212;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4 {
+            font-family: 'Source Sans Pro', sans-serif;
+        }
+
+        kbd {
+            color: #121212;
+        }
+    </style>
+    <title>CS 184 Path Tracer Additional Features</title>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+    <link href="https://fonts.googleapis.com/css?family=Open+Sans|Source+Sans+Pro" rel="stylesheet">
+    <script>
+        MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']]
+            }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js">
+    </script>
+</head>
+
+<body>
+    <br />
+    <h1 align="middle">CS 184: Computer Graphics and Imaging, Spring 2023</h1>
+    <h1 align="middle">Project 3-2: Additional Features to PathTracer</h1>
+    <h2 align="middle">Billy Huang and Parth Mahawar</h2>
+    <h2 align="middle">
+        <a href="https://cal-cs184-student.github.io/project-webpages-sp23-BillHuang0916/proj3-2/index.html">Webpage
+            URL</a>
+    </h2>
+
+    <div class=" padded">
+        <h2 align="middle">Overview</h2>
+        <p>
+            In this project, we explored more features for path tracing, specifically, adding support for mirror and
+            glass materials (part 1), microfacet materials (part 2), an infinite environmental light (part 3), and depth
+            of field simulation (part 4). Of the four parts, we chose to implement the BRDF for microfacet materials and
+            the depth of field simulation with a thin lens for our pathtracer. Most issues we encountered during this
+            project were due to either numerical issues or improperly handling edge cases in the specification.
+        </p>
+        <br>
+        <h2 align="middle">Part 1. Mirror and Glass Materials</h2>
+        <p>
+            We chose not to implement this feature.
+        </p>
+        <br>
+
+        <h2 align="middle">Part 2. Microfacet Material</h2>
+        <p>
+            We added support for microfacet materials by implementing its BRDF and by modifying importance sampling for
+            microfacet materials.
+        </p>
+        <p>
+            To generate the BRDFs of the microfacet materials in our path tracer, we used the Cook-Torrance model of
+            microfacet materials. For the Fresnel term $F$, the shadow-masking term, $G$, the normal distribution
+            function, $N$, the surface normal, $n$, the incoming direction $w_i$, the outgoing direction $w_o$, and the
+            half vector $h$ as defined in the Phong reflection model, the BRDF evaluates to
+            $$f = \frac{F(w_i) * G(w_o, w_i) * D(h)}{4 * (n \cdot w_o) * (n \cdot w_i)}$$
+        </p>
+        <p>
+            We used the Beckmann distribution as the normal distribution function, $D$, and approximated the Fresnel
+            term $F$ by calculating it only for the R, G, B channels (614nm, 549nm, and 466nm, respectively) given a
+            material's refractive index, $\eta$ and extinction coefficient, $k$.
+        </p>
+        <p>
+            Finally, we implemented a custom sampling function specifically for the Beckmann NDF so importance sampling
+            would converge more quickly. We take a randomly sampled $\theta$ and $\phi$ in the spherical coordinates of
+            the reflection point, use them to compute the half vector $h$ and then reflect $w_o$ on $h$ to get the
+            sampled light incident direction $w_i$. Finally, we calculate the pdf of the sampled $w_i$ using the sampled
+            $\theta$ and $\phi$.
+        </p>
+        <h3>
+            Show a screenshot sequence of 4 images of scene `CBdragon_microfacet_au.dae` rendered with $\alpha$ set
+            to 0.005, 0.05, 0.25 and 0.5. The other settings should be at least 128 samples per pixel and 1 samples
+            per light. The number of bounces should be at least 5. Describe the differences between different
+            images. Note that, to change the $\alpha$, just open the .dae file and search for `microfacet`.
+        </h3>
+        <div align="middle">
+            <table style="width:100%">
+                <tr align="center">
+                    <td>
+                        <img src="images/dragon_microfacet_.005.png" align="middle" width="450px" />
+                        <figcaption>$\alpha = 0.005$ </figcaption>
+                    </td>
+                    <td>
+                        <img src="images/dragon_microfacet_.05.png" align="middle" width="450px" />
+                        <figcaption>$\alpha = 0.05$ </figcaption>
+                    </td>
+                </tr>
+                <tr align="center">
+                    <td>
+                        <img src="images/dragon_microfacet_.25.png" align="middle" width="450px" />
+                        <figcaption>$\alpha = 0.25$ </figcaption>
+                    </td>
+                    <td>
+                        <img src="images/dragon_microfacet_.5.png" align="middle" width="450px" />
+                        <figcaption>$\alpha = 0.5$ </figcaption>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <p>
+            As alpha decreases, the macro surface of the microfacet model becomes smoother and the dragon becomes
+            glossier.
+            This increase in specularity also makes the entire image more specular and increases the noise in the image.
+        </p>
+        <br>
+        <h3>
+            Show two images of scene `CBbunny_microfacet_cu.dae` rendered using cosine hemisphere sampling (default)
+            and your importance sampling. The sampling rate should be fixed at 64 samples per pixel and 1 samples
+            per light. The number of bounces should be at least 5. Briefly discuss their difference.
+        </h3>
+        <div align="middle">
+            <table style="width:100%">
+                <tr align="center">
+                    <td>
+                        <img src="images/bunny_microfacet_hemisphere.png" align="middle" width="450px" />
+                        <figcaption>Hemisphere Sampling</figcaption>
+                    </td>
+                    <td>
+                        <img src="images/bunny_microfacet_importance.png" align="middle" width="450px" />
+                        <figcaption>Importance Sampling</figcaption>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <p>
+            We can see above that our importance sampling converges to the correct result much faster than cosine
+            hemisphere sampling. When using our importance sampling, there is overall less noise and the bunny has fewer
+            dark spots.
+        </p>
+        <br>
+        <h3>
+            Show at least one image with some other conductor material, replacing `eta` and `k`. Note that you
+            should look up values for real data rather than modifying them arbitrarily. Tell us what kind of
+            material your parameters correspond to.
+        </h3>
+        <div align="middle">
+            <img src="images/dragon_microfacet_pd_h.png" align="center" width="450px" />
+            <figcaption>Dragon with Palladium Hydride Surface</figcaption>
+        </div>
+        <p>
+            Above we rendered a dragon with a palladium hydride surface with $\eta = [2.0877, 2.0371, 1.9595]$, $k =
+            [3.3450, 3.0318, 2.7073]$, and $\alpha = 0.5$. As a result, we see a rough and silverish surface on the
+            dragon.
+        </p>
+        <br>
+
+        <h2 align="middle">Part 3. Environment Light</h2>
+        <p>
+            We chose not to implement this feature.
+        </p>
+        <br>
+
+        <h2 align="middle">Part 4. Depth of Field</h2>
+        <b>
+            For these subparts, we recommend using a microfacet BSDF scene to show off the cool out of focus effects
+            you can get with depth of field!
+        </b>
+        <h3>
+            In a few sentences, explain the differences between a pinhole camera model and a thin-lens camera model.
+        </h3>
+        <p>
+            A pinhole camera model obtains an image by creating rays that all originate from a single point, resembling
+            a real life pinhole camera. This geometrically allows for a clear image to be formed as there's only one
+            possible ray of light from the image sensor to the pinhole, which will always go out at the corresponding
+            angle to capture the image. However, this requires the pinhole to be infinitely small to obtain a clear
+            image, and while a very small pinhole is a reasonable approximation, in real life this results in not enough
+            light reaching the sensor.
+        </p>
+        <p>
+            Real cameras instead use lenses, which are approximated by the thin lens model. Lenses focus light such that
+            all rays originating from any point on their focal plane (the plane parallel to the lens at a distance of
+            its focal length) will converge to the exact same point on the image sensor. This creates an image that is
+            clear for the focal plane, and progressively becomes blurrier either side of it. While this model results in
+            less perfect renders than the pinhole camera model, it's far more representative of real cameras (and our
+            eyes!).
+        </p>
+        <br>
+        <h3>
+            Show a "focus stack" where you focus at 4 visibly different depths through a scene. Make sure to include
+            all screenshots.
+        </h3>
+        <div align="middle">
+            <table style="width:100%">
+                <tr align="center">
+                    <td>
+                        <img src="images/dragon_2.5f.png" align="middle" width="450px" />
+                        <figcaption>Focal Distance of 2.5 (CBdragon_microfacet_au.dae)</figcaption>
+                    </td>
+                    <td>
+                        <img src="images/dragon_3.5f.png" align="middle" width="450px" />
+                        <figcaption>Focal Distance of 3.5 (CBdragon_microfacet_au.dae)</figcaption>
+                    </td>
+                </tr>
+                <tr align="center">
+                    <td>
+                        <img src="images/dragon_4.5f.png" align="middle" width="450px" />
+                        <figcaption>Focal Distance of 4.5 (CBdragon_microfacet_au.dae)</figcaption>
+                    </td>
+                    <td>
+                        <img src="images/dragon_5.5f.png" align="middle" width="450px" />
+                        <figcaption>Focal Distance of 5.5 (CBdragon_microfacet_au.dae)</figcaption>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <p>
+            We can see the image of the dragon start out extremely blurry at focal distance 2.5 and become less blurry
+            as the focal distance increases until it reaches a distance of 4.5, where the camera is focused on the head
+            of the dragon and further increases the the focal distance increase blurriness. This occurs because the
+            dragon is only in focus at a distance of about 4.5 and everything else in the room is too far or close to be
+            in focus.
+        </p>
+        <br>
+        <h3>
+            Show a sequence of 4 pictures with visibly different aperture sizes, all focused at the same point in a
+            scene. Make sure to include all screenshots.
+        </h3>
+        <div align="middle">
+            <table style="width:100%">
+                <tr align="center">
+                    <td>
+                        <img src="images/bunny_0.05a.png" align="middle" width="450px" />
+                        <figcaption>$\alpha = 0.005$ </figcaption>
+                    </td>
+                    <td>
+                        <img src="images/bunny_0.2a.png" align="middle" width="450px" />
+                        <figcaption>$\alpha = 0.05$ </figcaption>
+                    </td>
+                </tr>
+                <tr align="center">
+                    <td>
+                        <img src="images/bunny_0.35a.png" align="middle" width="450px" />
+                        <figcaption>$\alpha = 0.25$ </figcaption>
+                    </td>
+                    <td>
+                        <img src="images/bunny_0.5a.png" align="middle" width="450px" />
+                        <figcaption>$\alpha = 0.5$ </figcaption>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <p>
+            Above, we see the room become blurrier as the aperture becomes larger. The blur's rounding and its
+            proportional increase with respect to the size of the aperture is especially noticeable at the bottom
+            corners of the light. This occurs because the circle of confusion that determines the size of the defocus
+            blur is proportional to the size of the aperture.
+        </p>
+        <br>
+        
+        <h2 align="middle">Partner Collaboration</h2>
+        <p>For this project (and project 3-1), we collaborated by working together on tasks that other tasks depended
+            on, and tackled independent tasks separately at the same time. This went pretty well and was effective in
+            getting the work done, and it led both of us to gain a far better understanding of how ray-traced rendering
+            actually happens (and what exactly is going on when Nvidia keeps talking about RTX), as well as how rendered
+            meshes end up with actually realistic coloring and lighting.</p>
+    </div>
+</body>
+
 </html>
